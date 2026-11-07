@@ -1,0 +1,70 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <Version>1.0.1</Version>
+        
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+        <RootNamespace>HABluetoothProxy</RootNamespace>
+        <Nullable>enable</Nullable>
+        <UseWindowsForms>true</UseWindowsForms>
+        <ImplicitUsings>enable</ImplicitUsings>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Google.Protobuf" Version="3.36.2" />
+      <PackageReference Include="Grpc.Tools" Version="2.84.0">
+        <PrivateAssets>all</PrivateAssets>
+        <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      </PackageReference>
+      <PackageReference Include="Serilog" Version="4.4.0" />
+      <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
+      <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+    </ItemGroup>
+
+    <UsingTask TaskName="SanitizeProtoTask" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+        <ParameterGroup>
+            <SourceDir ParameterType="System.String" Required="true" />
+            <OutputDir ParameterType="System.String" Required="true" />
+        </ParameterGroup>
+        <Task>
+            <Using Namespace="System" />
+            <Using Namespace="System.IO" />
+            <Using Namespace="System.Text.RegularExpressions" />
+            <Code Type="Fragment" Language="cs">
+                <![CDATA[
+        if (Directory.Exists(SourceDir))
+        {
+            Directory.CreateDirectory(OutputDir);
+            foreach (string file in Directory.GetFiles(SourceDir, "*.proto"))
+            {
+                string content = File.ReadAllText(file);
+                
+                // Only rename the message definition and return types that collide with C# keywords
+                content = Regex.Replace(content, @"\bmessage\s+void\b", "message Void");
+                content = Regex.Replace(content, @"\breturns\s*\(\s*void\s*\)", "returns (Void)");
+                
+                File.WriteAllText(Path.Combine(OutputDir, Path.GetFileName(file)), content);
+            }
+        }
+      ]]>
+            </Code>
+        </Task>
+    </UsingTask>
+
+    <Target Name="SanitizeProto" BeforeTargets="Protobuf_Compile;Protobuf_GenerateSources;BeforeBuild">
+        <SanitizeProtoTask SourceDir="Protos" OutputDir="$(IntermediateOutputPath)SanitizedProtos\" />
+    </Target>
+
+    <ItemGroup>
+        <Protobuf Include="$(IntermediateOutputPath)SanitizedProtos\api_options.proto" GrpcServices="None" />
+        <Protobuf Include="$(IntermediateOutputPath)SanitizedProtos\api.proto" GrpcServices="None" AdditionalImportDirs="$(IntermediateOutputPath)SanitizedProtos" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <EditorConfigFiles Remove="C:\Users\Timmy\code\ha-btproxy\.editorconfig" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Include="C:\Users\Timmy\code\ha-btproxy\.editorconfig" />
+    </ItemGroup>
+</Project>
